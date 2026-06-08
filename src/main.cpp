@@ -17,7 +17,6 @@
 
 using namespace geode::prelude;
 
-// --- Constants & Types ---
 
 static const std::string BOOMLINGS_API = "https://www.boomlings.com/database/getGJLevels21.php";
 static const std::string TWITCH_DEVICE_FLOW_URL = "https://id.twitch.tv/oauth2/device";
@@ -60,11 +59,15 @@ static web::WebSocket* g_twitchWS = nullptr;
 
 // persistence
 void saveQueue() {
-    matjson::Value data = matjson::makeArray();
-    for (const auto& entry : g_queue) { data.push_back(entry.toJson()); }
+    auto data = matjson::Value::array();
+    for (const auto& entry : g_queue) {
+        data.asArray().unwrap().push_back(entry.toJson());
+    }
     Mod::get()->setSavedValue("request-queue", data);
-    matjson::Value bans = matjson::makeArray();
-    for (const auto& user : g_bannedUsers) { bans.push_back(user); }
+    auto bans = matjson::Value::array();
+    for (const auto& user : g_bannedUsers) {
+        bans.asArray().unwrap().push_back(user);
+    }
     Mod::get()->setSavedValue("banned-users", bans);
 }
 
@@ -207,15 +210,25 @@ void connectToTwitch() {
 }
 
 // oauth bs
-class TwitchLoginPopup : public geode::Popup<> {
+class TwitchLoginPopup : public geode::Popup {
     std::string m_deviceCode;
     std::string m_userCode;
     std::string m_verificationUrl;
     int m_interval;
     bool m_polling = false;
 
-protected:
-    bool setup() override {
+public:
+    static TwitchLoginPopup* create() {
+        auto ret = new TwitchLoginPopup();
+        if (ret->init(240.f, 160.f)) {
+            ret->autorelease();
+            return ret;
+        }
+        CC_SAFE_DELETE(ret);
+        return nullptr;
+    }
+    bool init(float width, float height) {
+        if (!Popup::init(width, height)) return false;
         this->setTitle("Twitch Login");
         auto sz = m_mainLayer->getContentSize();
         auto lbl = CCLabelBMFont::create("loading...", "bigFont.fnt");
@@ -223,7 +236,7 @@ protected:
         lbl->setPosition(sz / 2);
         lbl->setTag(100);
         m_mainLayer->addChild(lbl);
-        startDeviceFlow();
+        this->startDeviceFlow();
         return true;
     }
 
@@ -313,30 +326,31 @@ protected:
         m_polling = false;
         Popup::onClose(sender);
     }
+};
+
+// queue UI
+class QueuePopup : public geode::Popup {
+    int m_page = 0;
+    static constexpr int PER_PAGE = 5;
 
 public:
-    static TwitchLoginPopup* create() {
-        auto ret = new TwitchLoginPopup();
-        if (ret->initAnchored(240.f, 160.f)) {
+    static QueuePopup* create() {
+        auto ret = new QueuePopup();
+        if (ret->init(370.f, 295.f)) {
             ret->autorelease();
             return ret;
         }
         CC_SAFE_DELETE(ret);
         return nullptr;
     }
-};
 
-// queue UI
-class QueuePopup : public geode::Popup<>, public FLAlertLayerProtocol {
-    int m_page = 0;
-    static constexpr int PER_PAGE = 5;
-
-protected:
-    bool setup() override {
+    bool init(float width, float height) {
+        if (!Popup::init(width, height)) return false;
         this->setTitle("Request Queue");
         buildPage();
         return true;
     }
+
     void buildPage() {
         m_mainLayer->removeAllChildrenWithCleanup(true);
         auto sz = m_mainLayer->getContentSize();
