@@ -1,20 +1,113 @@
 {
-    "geode": "5.7.0",
+    "geode": "5.7.1",
     "gd": {
         "win": "2.2081",
         "mac": "2.2081",
         "android": "2.2081",
         "ios": "2.2081"
     },
-    "version": "1.0.0",
-    "id": "MalikHw.hwgdbotv2",
-    "name": "hwgdbotv2",
-    "developer": "MalikHw",
-    "description": "desc.",
-    "tags": ["yes", "yeah"],
-    "links": {
-        "source": "https://github.com/MalikHw/hwgdbotv2",
-        "community": "https://discord.gg/G9bZ92eg2n"
+    "version": "v1.0.0",
+    "id": "malikhw47.hwgdbotv2",
+    "name": "HwGDBot",
+    "developer": "MalikHw47",
+    "description": "A Twitch request bot for Geometry Dash.",
+    "tags": ["utility", "online"],
+    "settings": {
+        "twitch-username": {
+            "name": "Twitch Username",
+            "description": "The Twitch channel to join.",
+            "type": "string",
+            "default": ""
+        },
+        "twitch-oauth-token": {
+            "name": "Twitch OAuth Token",
+            "description": "Stored OAuth token for Twitch IRC.",
+            "type": "string",
+            "default": "",
+            "visible": false
+        },
+        "login-button": {
+            "name": "Login to Twitch",
+            "description": "Initiate Twitch Device Flow login.",
+            "type": "custom",
+            "default": null
+        },
+        "keybind-open-queue": {
+            "name": "Open Queue Keybind",
+            "description": "Key to open the request queue popup.",
+            "type": "keybind",
+            "default": "F2"
+        },
+        "keybind-toggle-black": {
+            "name": "Toggle Black Screen Keybind",
+            "description": "Key to toggle the black screen overlay.",
+            "type": "keybind",
+            "default": "F3"
+        },
+        "show-toast": {
+            "name": "Show Toast on Play",
+            "description": "Show a notification when playing a requested level.",
+            "type": "bool",
+            "default": true
+        },
+        "bot-speak": {
+            "name": "Bot Speaks in Chat",
+            "description": "Whether the bot should send messages in Twitch chat.",
+            "type": "bool",
+            "default": true
+        },
+        "black-btn-position": {
+            "name": "Black Button Position",
+            "type": "string",
+            "default": "Bottom Left",
+            "one-of": [
+                "Top Left",
+                "Top Right",
+                "Center Left",
+                "Center Right",
+                "Bottom Left",
+                "Bottom Right"
+            ]
+        },
+        "black-btn-size": {
+            "name": "Black Button Size",
+            "type": "int",
+            "default": 35,
+            "min": 10,
+            "max": 100
+        },
+        "hide-black-btn": {
+            "name": "Hide Black Button",
+            "description": "Hide the black screen toggle button in PlayLayer.",
+            "type": "bool",
+            "default": false
+        },
+        "always-show-black-btn": {
+            "name": "Always Show Black Button",
+            "description": "Show the black button even on PC.",
+            "type": "bool",
+            "default": false
+        },
+        "export-json": {
+            "name": "Export Queue to JSON",
+            "type": "custom",
+            "default": null
+        },
+        "import-json": {
+            "name": "Import Queue from JSON",
+            "type": "custom",
+            "default": null
+        },
+        "reinstall-mod": {
+            "name": "Reinstall Mod",
+            "type": "custom",
+            "default": null
+        }
     },
-    "settings": {}
+    "resources": {
+        "sprites": [
+            "logo.png",
+            "black-toggle.png"
+        ]
+    }
 }
