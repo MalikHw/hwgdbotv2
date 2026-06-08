@@ -31,13 +31,13 @@ struct QueueEntry {
     std::string levelName;
     std::string difficulty;
     matjson::Value toJson() const {
-        return matjson::makeObject({
+        return matjson::Object {
             {"levelId", levelId},
             {"requester", requester},
             {"timestamp", static_cast<long long>(timestamp)},
             {"levelName", levelName},
             {"difficulty", difficulty}
-        });
+        };
     }
     static QueueEntry fromJson(matjson::Value const& json) {
         return {
@@ -75,7 +75,7 @@ void loadQueue() {
     auto data = Mod::get()->getSavedValue<matjson::Value>("request-queue");
     if (data.isArray()) {
         g_queue.clear();
-        for (const auto& item : data) {
+        for (const auto& item : data.asArray().unwrap()) {
             g_queue.push_back(QueueEntry::fromJson(item));
         }
     }
@@ -83,8 +83,8 @@ void loadQueue() {
     auto bans = Mod::get()->getSavedValue<matjson::Value>("banned-users");
     if (bans.isArray()) {
         g_bannedUsers.clear();
-        for (const auto& item : bans) {
-            g_bannedUsers.insert(item.asString().unwrapOr(""));
+        for (const auto& item : bans.asArray().unwrap()) {
+            g_bannedUsers.insert(item.asString().unwrap_or(""));
         }
     }
 }
@@ -130,39 +130,39 @@ void processIRCMessage(const std::string& raw) {
 
             // Validate level
             std::string body = fmt::format("str={}&type=0&secret=Wmfd2893gb7", levelId);
-            geode::async::spawn(
-                [body]() -> web::WebFuture {
-                    return web::WebRequest()
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .body(std::vector<uint8_t>(body.begin(), body.end()))
-                        .post(BOOMLINGS_API);
-                },
-                [levelId, user](web::WebResponse res) {
-                    if (!res.ok()) return;
-                    std::string text = res.string().unwrapOr("");
-                    if (text == "-1" || text.empty()) {
-                        sendTwitchMessage(fmt::format("HwGDBot: {} does not exist as a level", levelId));
-                        return;
-                    }
-
-                    // level name extraction
-                    std::string levelName = "Unknown";
-                    std::regex nameRegex(R"(^[^:]+:([^:]+):)");
-                    std::smatch nameMatch;
-                    if (std::regex_search(text, nameMatch, nameRegex)) { levelName = nameMatch[1].str(); }
-
-                    QueueEntry entry;
-                    entry.levelId = levelId;
-                    entry.requester = user;
-                    entry.timestamp = time(nullptr);
-                    entry.levelName = levelName;
-                    g_queue.push_back(entry);
-                    g_userCooldowns[user] = time(nullptr);
-                    saveQueue();
-                    sendTwitchMessage(fmt::format("HwGDBot: added {} by {}", levelName, user));
-                    Notification::create(fmt::format("New request: {} by {}", levelName, user), NotificationIcon::Info)->show();
+        geode::async::spawn(
+            [body]() -> web::WebFuture {
+                return web::WebRequest()
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .body(std::vector<uint8_t>(body.begin(), body.end()))
+                    .post(BOOMLINGS_API);
+            },
+            [levelId, user](web::WebResponse res) {
+                if (!res.ok()) return;
+                std::string text = res.string().unwrap_or("");
+                if (text == "-1" || text.empty()) {
+                    sendTwitchMessage(fmt::format("HwGDBot: {} does not exist as a level", levelId));
+                    return;
                 }
-            );
+
+                // level name extraction
+                std::string levelName = "Unknown";
+                std::regex nameRegex(R"(^[^:]+:([^:]+):)");
+                std::smatch nameMatch;
+                if (std::regex_search(text, nameMatch, nameRegex)) { levelName = nameMatch[1].str(); }
+
+                QueueEntry entry;
+                entry.levelId = levelId;
+                entry.requester = user;
+                entry.timestamp = time(nullptr);
+                entry.levelName = levelName;
+                g_queue.push_back(entry);
+                g_userCooldowns[user] = time(nullptr);
+                saveQueue();
+                sendTwitchMessage(fmt::format("HwGDBot: added {} by {}", levelName, user));
+                Notification::create(fmt::format("New request: {} by {}", levelName, user), NotificationIcon::Info)->show();
+            }
+        );
         }
     } else if (raw.find("PING") == 0) {
         g_twitchWS->send("PONG :tmi.twitch.tv");
@@ -182,10 +182,10 @@ void connectToTwitch() {
         []() -> web::WebFuture {
             return web::WebSocket::connect(TWITCH_IRC_WS);
         },
-        [token, channel](Result<web::WebSocket*, std::string> res) {
+        [token, channel](Result<web::WebSocket*> res) {
             g_isConnecting = false;
             if (!res) {
-                log::error("WebSocket connection failed: {}", res.error());
+                log::error("WebSocket connection failed: {}", res.unwrapErr());
                 return;
             }
             g_twitchWS = res.unwrap();
@@ -433,7 +433,9 @@ public:
                     CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png"),
                     this, menu_selector(QueuePopup::onNext)
                 );
-                nextBtn->setFlipX(true);
+                if (auto spr = typeinfo_cast<CCSprite*>(nextBtn->getNormalImage())) {
+                    spr->setFlipX(true);
+                }
                 nextBtn->setPosition({sz.width - 30, 25});
                 nextBtn->setScale(0.6f);
                 menu->addChild(nextBtn);
@@ -460,17 +462,6 @@ public:
 
     void onPrev(CCObject*) { m_page--; buildPage(); }
     void onNext(CCObject*) { m_page++; buildPage(); }
-
-public:
-    static QueuePopup* create() {
-        auto ret = new QueuePopup();
-        if (ret->initAnchored(350.f, 280.f)) {
-            ret->autorelease();
-            return ret;
-        }
-        CC_SAFE_DELETE(ret);
-        return nullptr;
-    }
 };
 
 // hooks
@@ -624,6 +615,7 @@ public:
         if (ret->init(setting, width)) { ret->autorelease(); return ret; }
         delete ret; return nullptr;
     }
+    SettingNodeV3* createNode(float width) override;
     bool hasUncommittedChanges() const override { return false; }
     bool hasNonDefaultValue() const override { return false; }
 };
@@ -644,12 +636,12 @@ protected:
     }
     void onExport(CCObject*) {
         matjson::Value data = matjson::makeObject({
-            {"hwgdbot-version", Mod::get()->getVersion().toString()},
-            {"queue", matjson::makeArray()},
-            {"bans", matjson::makeArray()}
+            {"hwgdbot-version", Mod::get()->getVersion().toFullString()},
+            {"queue", matjson::Value::array()},
+            {"bans", matjson::Value::array()}
         });
-        for (const auto& e : g_queue) data["queue"].push_back(e.toJson());
-        for (const auto& b : g_bannedUsers) data["bans"].push_back(b);
+        for (const auto& e : g_queue) data["queue"].asArray().unwrap().push_back(e.toJson());
+        for (const auto& b : g_bannedUsers) data["bans"].asArray().unwrap().push_back(b);
 
         auto path = Mod::get()->getSaveDir() / "queue_export.json";
         std::ofstream file(path.string());
@@ -665,6 +657,7 @@ public:
         if (ret->init(setting, width)) { ret->autorelease(); return ret; }
         delete ret; return nullptr;
     }
+    SettingNodeV3* createNode(float width) override;
     bool hasUncommittedChanges() const override { return false; }
     bool hasNonDefaultValue() const override { return false; }
 };
@@ -684,23 +677,23 @@ protected:
         return true;
     }
     void onImport(CCObject*) {
-        file::FilePicker::create()->setFilter({"*.json"})->pickFile([](ghc::filesystem::path path) {
+        utils::file::pickFile(utils::file::PickMode::OpenFile, { .filters = { "*.json" } }, [this](std::filesystem::path path) {
             std::ifstream file(path.string());
             std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
             auto json = matjson::parse(content);
-            if (!json || !(*json).contains("hwgdbot-version")) {
+            if (!json || !json.unwrap().contains("hwgdbot-version")) {
                 FLAlertLayer::create("Error", "Invalid data/version", "OK")->show();
                 return;
             }
-            if ((*json)["hwgdbot-version"].asString().unwrapOr("") != Mod::get()->getVersion().toString()) {
+            if (json.unwrap()["hwgdbot-version"].asString().unwrapOr("") != Mod::get()->getVersion().toFullString()) {
                 FLAlertLayer::create("Error", "Version mismatch", "OK")->show();
                 return;
             }
             
             g_queue.clear();
-            for (const auto& item : (*json)["queue"]) g_queue.push_back(QueueEntry::fromJson(item));
+            for (const auto& item : json.unwrap()["queue"].asArray().unwrap()) g_queue.push_back(QueueEntry::fromJson(item));
             g_bannedUsers.clear();
-            for (const auto& item : (*json)["bans"]) g_bannedUsers.insert(item.asString().unwrapOr(""));
+            for (const auto& item : json.unwrap()["bans"].asArray().unwrap()) g_bannedUsers.insert(item.asString().unwrapOr(""));
             saveQueue();
             FLAlertLayer::create("Imported", "Queue and bans imported successfully.", "OK")->show();
         });
@@ -713,6 +706,7 @@ public:
         if (ret->init(setting, width)) { ret->autorelease(); return ret; }
         delete ret; return nullptr;
     }
+    SettingNodeV3* createNode(float width) override;
     bool hasUncommittedChanges() const override { return false; }
     bool hasNonDefaultValue() const override { return false; }
 };
@@ -731,6 +725,9 @@ protected:
         menu->updateLayout();
         return true;
     }
+    void onReinstall(CCObject*) {
+        FLAlertLayer::create("Reinstall", "Reinstalling...", "OK")->show();
+    }
     void onCommit() override {}
     void onResetToDefault() override {}
 public:
@@ -739,15 +736,16 @@ public:
         if (ret->init(setting, width)) { ret->autorelease(); return ret; }
         delete ret; return nullptr;
     }
+    SettingNodeV3* createNode(float width) override;
     bool hasUncommittedChanges() const override { return false; }
     bool hasNonDefaultValue() const override { return false; }
 };
 
 // settings register
-SettingNodeV3* TwitchLoginSettingNode::createNode(float width) { return TwitchLoginSettingNode::create(shared_from_this(), width); }
-SettingNodeV3* JSONExportSettingNode::createNode(float width) { return JSONExportSettingNode::create(shared_from_this(), width); }
-SettingNodeV3* JSONImportSettingNode::createNode(float width) { return JSONImportSettingNode::create(shared_from_this(), width); }
-SettingNodeV3* ReinstallSettingNode::createNode(float width) { return ReinstallSettingNode::create(shared_from_this(), width); }
+SettingNodeV3* TwitchLoginSettingNode::createNode(float width) { return TwitchLoginSettingNode::create(std::static_pointer_cast<SettingV3>(shared_from_this()), width); }
+SettingNodeV3* JSONExportSettingNode::createNode(float width) { return JSONExportSettingNode::create(std::static_pointer_cast<SettingV3>(shared_from_this()), width); }
+SettingNodeV3* JSONImportSettingNode::createNode(float width) { return JSONImportSettingNode::create(std::static_pointer_cast<SettingV3>(shared_from_this()), width); }
+SettingNodeV3* ReinstallSettingNode::createNode(float width) { return ReinstallSettingNode::create(std::static_pointer_cast<SettingV3>(shared_from_this()), width); }
 
 class ButtonSetting : public SettingV3 {
 public:
